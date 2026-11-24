@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>CWG Inventory</title>
+<style>
+  :root{
+    --bg:#0e1017; --panel:#171a24; --panel2:#1f2330; --line:#2b3040;
+    --ink:#eef1f7; --muted:#9aa3b6; --accent:#6c8cff; --accent2:#5a76e0;
+    --good:#4caf7d; --warn:#e0a94a; --bad:#e5675c; --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--ink);
+    -webkit-text-size-adjust:100%;
+    padding:max(16px,env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; align-items:center; min-height:100vh;
+  }
+  .wrap{width:100%; max-width:460px}
+  .top{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px}
+  .brand{font-weight:700; letter-spacing:.14em; font-size:12px; color:var(--muted); text-transform:uppercase}
+  .top a{color:var(--muted); text-decoration:none; font-size:13px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:16px}
+  .name{font-size:24px; font-weight:700; margin:0 0 2px}
+  .sub{color:var(--muted); font-size:14px; margin:0}
+  .qtyblock{text-align:center; padding:18px 0 6px}
+  .qty{font-size:64px; font-weight:800; line-height:1; letter-spacing:-.02em}
+  .qty.low{color:var(--warn)} .qty.out{color:var(--bad)}
+  .qtylabel{color:var(--muted); font-size:14px; margin-top:6px}
+  .badge{display:inline-block; font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; margin-top:10px}
+  .badge.low{background:rgba(224,169,74,.15); color:var(--warn)}
+  .badge.out{background:rgba(229,103,92,.15); color:var(--bad)}
+  .modes{display:flex; gap:8px; margin:4px 0 16px}
+  .modes button{flex:1; padding:11px; border-radius:12px; border:1px solid var(--line); background:var(--panel2); color:var(--muted); font-weight:600; font-size:15px; cursor:pointer}
+  .modes button.on[data-mode="take"]{background:var(--accent); border-color:var(--accent); color:#fff}
+  .modes button.on[data-mode="add"]{background:var(--good); border-color:var(--good); color:#fff}
+  .stepper{display:flex; align-items:stretch; gap:10px; margin-bottom:14px}
+  .stepper button{width:64px; font-size:30px; font-weight:700; border-radius:14px; border:1px solid var(--line); background:var(--panel2); color:var(--ink); cursor:pointer; touch-action:manipulation}
+  .stepper button:active{background:var(--line)}
+  .stepper input{flex:1; text-align:center; font-size:40px; font-weight:800; border-radius:14px; border:1px solid var(--line); background:#0b0d14; color:var(--ink); min-width:0; -moz-appearance:textfield}
+  .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+  .who{width:100%; padding:13px 14px; font-size:16px; border-radius:12px; border:1px solid var(--line); background:#0b0d14; color:var(--ink); margin-bottom:14px}
+  .who::placeholder{color:#6b7488}
+  .go{width:100%; padding:16px; font-size:18px; font-weight:800; border:none; border-radius:14px; color:#fff; cursor:pointer; background:var(--accent)}
+  .go.add{background:var(--good)}
+  .go:disabled{opacity:.5; cursor:default}
+  .msg{margin-top:14px; padding:12px 14px; border-radius:12px; font-size:15px; display:none}
+  .msg.show{display:block}
+  .msg.ok{background:rgba(76,175,125,.14); color:#8fe0b4; border:1px solid rgba(76,175,125,.35)}
+  .msg.err{background:rgba(229,103,92,.14); color:#f0a39b; border:1px solid rgba(229,103,92,.35)}
+  .notes{color:var(--muted); font-size:13px; margin-top:12px; white-space:pre-wrap}
+  .center{text-align:center}
+  .muted{color:var(--muted)}
+  .linkbtn{display:inline-block; margin-top:8px; color:var(--accent); text-decoration:none; font-weight:600}
+  .spin{color:var(--muted); text-align:center; padding:40px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <span class="brand">CWG Inventory</span>
+    <a id="dashLink" href="#">All bins →</a>
+  </div>
+  <div id="root"><div class="spin">Loading…</div></div>
+</div>
+<script>
+(function(){
+  var BASE = window.INV_BASE || "";
+  var BIN  = window.INV_BIN  || "";
+  var root = document.getElementById("root");
+  document.getElementById("dashLink").href = BASE + "/";
+  var state = { bin:null, mode:"take" };
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+  function api(path, opts){ return fetch(BASE + path, opts).then(function(r){ return r.json().then(function(j){ return {status:r.status, body:j}; }); }); }
+
+  if(!BIN){ return showMissing("This QR code doesn't point to a bin yet."); }
+
+  load();
+
+  function load(){
+    api("/api/bin?id=" + encodeURIComponent(BIN)).then(function(r){
+      if(r.status === 404){ return showMissing('Bin "' + esc(BIN) + '" isn\'t set up yet.'); }
+      if(!r.body.bin){ return showMissing("Couldn't load this bin."); }
+      state.bin = r.body.bin;
+      render();
+    }).catch(function(){ showMissing("Network error — check your connection and reload."); });
+  }
+
+  function showMissing(text){
+    root.innerHTML =
+      '<div class="card center">'+
+      '<p class="name">Bin not found</p>'+
+      '<p class="sub">'+esc(text)+'</p>'+
+      '<a class="linkbtn" href="'+BASE+'/">Open the inventory dashboard</a>'+
+      '</div>';
+  }
+
+  function level(q, low){
+    if(q <= 0) return "out";
+    if(low != null && q <= low) return "low";
+    return "ok";
+  }
+
+  function render(){
+    var b = state.bin;
+    var lv = level(b.quantity, b.low_threshold);
+    var unit = b.unit ? " " + esc(b.unit) : "";
+    var badge = lv === "out" ? '<span class="badge out">Out of stock</span>'
+              : lv === "low" ? '<span class="badge low">Low stock</span>' : "";
+    root.innerHTML =
+      '<div class="card">'+
+        '<p class="name">'+esc(b.name)+'</p>'+
+        '<p class="sub">Bin '+esc(b.id)+(b.location?' · '+esc(b.location):'')+'</p>'+
+        '<div class="qtyblock">'+
+          '<div class="qty '+(lv==="ok"?"":lv)+'" id="qty">'+b.quantity+'</div>'+
+          '<div class="qtylabel">in stock'+unit+'</div>'+
+          badge+
+        '</div>'+
+        (b.notes?'<div class="notes">'+esc(b.notes)+'</div>':'')+
+      '</div>'+
+      '<div class="card">'+
+        '<div class="modes">'+
+          '<button data-mode="take" class="on">I\'m taking</button>'+
+          '<button data-mode="add">Restocking</button>'+
+        '</div>'+
+        '<div class="stepper">'+
+          '<button type="button" id="minus">–</button>'+
+          '<input id="amt" type="number" inputmode="numeric" min="1" step="1" value="1">'+
+          '<button type="button" id="plus">+</button>'+
+        '</div>'+
+        '<input class="who" id="who" type="text" autocomplete="name" placeholder="Your name (optional)">'+
+        '<button class="go" id="go">Take 1</button>'+
+        '<div class="msg" id="msg"></div>'+
+      '</div>';
+
+    var who = document.getElementById("who");
+    try { who.value = localStorage.getItem("inv_who") || ""; } catch(e){}
+
+    var amt = document.getElementById("amt");
+    document.getElementById("minus").onclick = function(){ amt.value = Math.max(1, (parseInt(amt.value,10)||1) - 1); syncGo(); };
+    document.getElementById("plus").onclick  = function(){ amt.value = (parseInt(amt.value,10)||0) + 1; syncGo(); };
+    amt.oninput = syncGo;
+
+    [].forEach.call(document.querySelectorAll(".modes button"), function(btn){
+      btn.onclick = function(){
+        state.mode = btn.getAttribute("data-mode");
+        [].forEach.call(document.querySelectorAll(".modes button"), function(x){ x.classList.remove("on"); });
+        btn.classList.add("on");
+        syncGo();
+      };
+    });
+
+    document.getElementById("go").onclick = submit;
+    syncGo();
+  }
+
+  function syncGo(){
+    var amt = Math.max(1, parseInt(document.getElementById("amt").value,10) || 1);
+    var go = document.getElementById("go");
+    if(state.mode === "take"){ go.textContent = "Take " + amt; go.classList.remove("add"); }
+    else { go.textContent = "Add " + amt; go.classList.add("add"); }
+  }
+
+  function submit(){
+    var amt = Math.max(1, parseInt(document.getElementById("amt").value,10) || 1);
+    var delta = state.mode === "take" ? -amt : amt;
+    var who = document.getElementById("who").value.trim();
+    try { localStorage.setItem("inv_who", who); } catch(e){}
+    var go = document.getElementById("go"); go.disabled = true;
+    api("/api/take", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ id: BIN, delta: delta, who: who })
+    }).then(function(r){
+      go.disabled = false;
+      var msg = document.getElementById("msg");
+      if(r.body && r.body.ok){
+        state.bin.quantity = r.body.quantity;
+        var qEl = document.getElementById("qty");
+        qEl.textContent = r.body.quantity;
+        var lv = level(r.body.quantity, state.bin.low_threshold);
+        qEl.className = "qty " + (lv==="ok"?"":lv);
+        flash(msg, "ok", (state.mode==="take"?"Took ":"Added ") + amt + " · " + r.body.quantity + " now in stock" + (state.bin.unit?" "+esc(state.bin.unit):""));
+        document.getElementById("amt").value = 1; syncGo();
+      } else {
+        flash(msg, "err", (r.body && r.body.error) || "Something went wrong.");
+        if(r.body && typeof r.body.quantity === "number"){ document.getElementById("qty").textContent = r.body.quantity; state.bin.quantity = r.body.quantity; }
+      }
+    }).catch(function(){ go.disabled = false; flash(document.getElementById("msg"),"err","Network error — try again."); });
+  }
+
+  function flash(el, kind, text){ el.className = "msg show " + kind; el.textContent = text; }
+})();
+</script>
+</body>
+</html>

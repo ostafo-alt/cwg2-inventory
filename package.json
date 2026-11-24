@@ -1,0 +1,14 @@
+{
+  "name": "cwg2-inventory",
+  "version": "1.0.0",
+  "description": "CWG Department Inventory: QR-per-bin stock tracking as its own Cloudflare Worker (shares the cwg2 D1 database).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  }
+}

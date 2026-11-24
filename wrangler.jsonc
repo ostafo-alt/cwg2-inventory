@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // CWG Department Inventory, as its own Cloudflare Worker.
+  // Deploy with: npx wrangler deploy
+  "name": "cwg2-inventory",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-09-01",
+
+  // The dashboard, the per-bin scan page and the vendored QR library.
+  // Every request goes to the Worker first so it can strip the /inventory prefix
+  // before handing pages and files to the static assets.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+
+  // Served at https://cwg.echowrought.com/inventory (the Worker strips the /inventory prefix itself).
+  // Shared domain: the CWG Homepage is at https://cwg.echowrought.com (Custom Domain on cwg2-homepage),
+  // the leaderboard at /leaderboard, the admin panel at /admin_panel. Routes win over the Custom Domain.
+  // Only on cwg.echowrought.com: no workers.dev address and no workers.dev preview URLs.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "cwg.echowrought.com/inventory", "zone_name": "echowrought.com" },
+    { "pattern": "cwg.echowrought.com/inventory/*", "zone_name": "echowrought.com" }
+  ],
+
+  // Uses the cwg2-yolo D1 database. Put its database_id here:
+  //   npx wrangler d1 info cwg2-yolo
+  // (If cwg2-yolo doesn't exist yet: npx wrangler d1 create cwg2-yolo)
+  // This Worker creates its own inv_bins and inv_log tables on first request (CREATE TABLE IF NOT EXISTS),
+  // so there is nothing to migrate.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cwg2-yolo",
+      "database_id": "REPLACE_WITH_YOUR_DATABASE_ID"
+    }
+  ],
+
+  "observability": { "enabled": true }
+}

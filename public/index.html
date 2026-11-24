@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CWG Department Inventory</title>
+<style>
+  :root{
+    --bg:#0e1017; --panel:#171a24; --panel2:#1f2330; --line:#2b3040;
+    --ink:#eef1f7; --muted:#9aa3b6; --accent:#6c8cff; --accent2:#5a76e0;
+    --good:#4caf7d; --warn:#e0a94a; --bad:#e5675c; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink)}
+  a{color:var(--accent)}
+  .page{max-width:1080px; margin:0 auto; padding:22px 18px 60px}
+  header{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:18px}
+  h1{font-size:22px; margin:0; letter-spacing:.01em}
+  h1 small{display:block; font-size:12px; font-weight:400; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:4px}
+  .actions{display:flex; gap:8px; flex-wrap:wrap}
+  button{font:inherit; cursor:pointer}
+  .btn{padding:9px 14px; border-radius:10px; border:1px solid var(--line); background:var(--panel2); color:var(--ink); font-weight:600}
+  .btn:hover{border-color:#3a4050}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:5px 10px; font-size:13px; border-radius:8px}
+  .btn.danger{color:var(--bad)}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px}
+  .bin{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px; display:flex; flex-direction:column; gap:8px}
+  .bin .row1{display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
+  .bin .nm{font-weight:700; font-size:16px; margin:0}
+  .bin .id{color:var(--muted); font-size:12px; font-family:ui-monospace,Menlo,Consolas,monospace}
+  .bin .loc{color:var(--muted); font-size:12px}
+  .qbox{display:flex; align-items:baseline; gap:8px; margin-top:2px}
+  .q{font-size:34px; font-weight:800; line-height:1}
+  .q.low{color:var(--warn)} .q.out{color:var(--bad)}
+  .qu{color:var(--muted); font-size:13px}
+  .pill{font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px}
+  .pill.low{background:rgba(224,169,74,.15); color:var(--warn)}
+  .pill.out{background:rgba(229,103,92,.15); color:var(--bad)}
+  .bin .ctrls{display:flex; gap:6px; margin-top:auto; flex-wrap:wrap; align-items:center}
+  .step{display:flex; gap:6px}
+  .step button{width:34px; height:32px; font-size:18px; font-weight:700; border-radius:8px; border:1px solid var(--line); background:var(--panel2); color:var(--ink)}
+  .spacer{flex:1}
+  .muted{color:var(--muted)}
+  .empty{background:var(--panel); border:1px dashed var(--line); border-radius:var(--radius); padding:40px; text-align:center; color:var(--muted)}
+  section h2{font-size:14px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin:28px 0 12px}
+  table{width:100%; border-collapse:collapse; font-size:13px}
+  th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line)}
+  th{color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.06em}
+  td.delta.pos{color:var(--good)} td.delta.neg{color:var(--bad)}
+  /* dialog */
+  dialog{border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:16px; padding:0; max-width:440px; width:calc(100% - 32px)}
+  dialog::backdrop{background:rgba(5,7,12,.6)}
+  .dlg-h{padding:16px 18px; border-bottom:1px solid var(--line); font-weight:700}
+  .dlg-b{padding:18px}
+  .dlg-f{padding:14px 18px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:8px}
+  label{display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; font-weight:600}
+  input[type=text],input[type=number],textarea{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#0b0d14; color:var(--ink); font:inherit}
+  textarea{resize:vertical; min-height:60px}
+  .two{display:flex; gap:10px}
+  .two>div{flex:1}
+  .hint{font-size:12px; color:var(--muted); margin-top:4px}
+  .dlg-err{color:var(--bad); font-size:13px; margin-top:10px; min-height:1em}
+  .qrwrap{text-align:center; padding:6px}
+  .qrwrap svg{width:230px; height:230px; background:#fff; border-radius:10px; padding:10px}
+  .qrurl{font-size:12px; color:var(--muted); word-break:break-all; margin-top:10px}
+  /* print sheet */
+  #printArea{display:none}
+  @media print{
+    body{background:#fff}
+    .page, dialog{display:none !important}
+    #printArea{display:grid !important; grid-template-columns:repeat(3,1fr); gap:18px; padding:14px}
+    .pcard{border:1px solid #ccc; border-radius:10px; padding:12px; text-align:center; page-break-inside:avoid; color:#000}
+    .pcard svg{width:100%; height:auto}
+    .pcard .pn{font-weight:700; margin-top:8px; font-size:14px}
+    .pcard .pi{font-family:monospace; font-size:12px; color:#444}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1><small>CWG</small>Department Inventory</h1>
+    <div class="actions">
+      <button class="btn" id="printBtn">Print QR codes</button>
+      <button class="btn primary" id="addBtn">+ Add bin</button>
+    </div>
+  </header>
+
+  <div id="bins"><div class="empty">Loading…</div></div>
+
+  <section>
+    <h2>Recent activity</h2>
+    <div id="log" class="muted">—</div>
+  </section>
+</div>
+
+<!-- Add / edit bin -->
+<dialog id="editDlg">
+  <form method="dialog" id="editForm">
+    <div class="dlg-h" id="editTitle">Add bin</div>
+    <div class="dlg-b">
+      <label for="f_id">Bin ID <span class="muted">(goes in the QR / URL)</span></label>
+      <input type="text" id="f_id" autocomplete="off" placeholder="e.g. A12">
+      <div class="hint" id="idHint">Letters, numbers, dashes or underscores. Used for the scan link: <span id="urlPreview">/inventory/…</span></div>
+      <label for="f_name">Item name</label>
+      <input type="text" id="f_name" placeholder="e.g. Nitrile gloves (M)">
+      <div class="two">
+        <div>
+          <label for="f_qty">Quantity in stock</label>
+          <input type="number" id="f_qty" min="0" step="1" value="0">
+        </div>
+        <div>
+          <label for="f_unit">Unit <span class="muted">(optional)</span></label>
+          <input type="text" id="f_unit" placeholder="boxes">
+        </div>
+      </div>
+      <div class="two">
+        <div>
+          <label for="f_low">Low-stock at <span class="muted">(optional)</span></label>
+          <input type="number" id="f_low" min="0" step="1" placeholder="e.g. 5">
+        </div>
+        <div>
+          <label for="f_loc">Location <span class="muted">(optional)</span></label>
+          <input type="text" id="f_loc" placeholder="Shelf 3">
+        </div>
+      </div>
+      <label for="f_notes">Notes <span class="muted">(optional, shown on the scan page)</span></label>
+      <textarea id="f_notes" placeholder="Reorder from supplier X"></textarea>
+      <div class="dlg-err" id="editErr"></div>
+    </div>
+    <div class="dlg-f">
+      <button class="btn ghost" value="cancel" type="submit">Cancel</button>
+      <button class="btn primary" id="saveBtn" value="save" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- QR for one bin -->
+<dialog id="qrDlg">
+  <div class="dlg-h" id="qrTitle">QR code</div>
+  <div class="dlg-b">
+    <div class="qrwrap" id="qrBox"></div>
+    <div class="qrurl" id="qrUrl"></div>
+  </div>
+  <div class="dlg-f">
+    <button class="btn ghost" id="qrClose">Close</button>
+    <button class="btn" id="qrPrintOne">Print this one</button>
+  </div>
+</dialog>
+
+<div id="printArea"></div>
+
+<script>
+(function(){
+  var BASE = window.INV_BASE || "";
+  var bins = [];
+  var elBins = document.getElementById("bins");
+  var elLog  = document.getElementById("log");
+  var editDlg = document.getElementById("editDlg");
+  var qrDlg = document.getElementById("qrDlg");
+  var editingId = null;
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+  function api(path, opts){ return fetch(BASE + path, opts).then(function(r){ return r.json().then(function(j){ return {status:r.status, body:j}; }); }); }
+  function binUrl(id){ return location.origin + BASE + "/" + encodeURIComponent(id); }
+  function dialogOpen(){ return editDlg.open || qrDlg.open; }
+
+  function level(q, low){ if(q<=0) return "out"; if(low!=null && q<=low) return "low"; return "ok"; }
+
+  // ---- QR as scalable SVG --------------------------------------------------
+  function qrSvg(text){
+    if(typeof qrcode === "undefined"){ return '<div style="padding:30px;color:#000">QR library still loading — try again in a moment.</div>'; }
+    var qr = qrcode(0, "M"); qr.addData(text); qr.make();
+    var n = qr.getModuleCount(), m = 4, t = n + m*2, rects = "";
+    for(var r=0;r<n;r++) for(var c=0;c<n;c++) if(qr.isDark(r,c)) rects += '<rect x="'+(c+m)+'" y="'+(r+m)+'" width="1.02" height="1.02"/>';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+t+' '+t+'" shape-rendering="crispEdges">'+
+           '<rect width="'+t+'" height="'+t+'" fill="#fff"/><g fill="#000">'+rects+'</g></svg>';
+  }
+
+  // ---- load ----------------------------------------------------------------
+  function loadBins(){
+    return api("/api/bins").then(function(r){ bins = (r.body && r.body.bins) || []; renderBins(); });
+  }
+  function loadLog(){
+    return api("/api/log?limit=30").then(function(r){ renderLog((r.body && r.body.log) || []); });
+  }
+
+  function renderBins(){
+    if(!bins.length){
+      elBins.innerHTML = '<div class="empty">No bins yet. Click <b>+ Add bin</b> to create your first one, print its QR code, and stick it on the bin.</div>';
+      return;
+    }
+    elBins.className = "grid";
+    elBins.innerHTML = bins.map(function(b){
+      var lv = level(b.quantity, b.low_threshold);
+      var pill = lv==="out" ? '<span class="pill out">Out</span>' : lv==="low" ? '<span class="pill low">Low</span>' : "";
+      return '<div class="bin" data-id="'+esc(b.id)+'">'+
+        '<div class="row1"><div><p class="nm">'+esc(b.name)+'</p>'+
+          '<span class="id">'+esc(b.id)+'</span>'+(b.location?' <span class="loc">· '+esc(b.location)+'</span>':'')+'</div>'+pill+'</div>'+
+        '<div class="qbox"><span class="q '+(lv==="ok"?"":lv)+'">'+b.quantity+'</span><span class="qu">'+(b.unit?esc(b.unit):'in stock')+'</span></div>'+
+        '<div class="ctrls">'+
+          '<div class="step"><button data-act="dec">–</button><button data-act="inc">+</button></div>'+
+          '<span class="spacer"></span>'+
+          '<button class="btn sm" data-act="qr">QR</button>'+
+          '<button class="btn sm" data-act="edit">Edit</button>'+
+          '<button class="btn sm danger" data-act="del">Delete</button>'+
+        '</div></div>';
+    }).join("");
+  }
+
+  function renderLog(rows){
+    if(!rows.length){ elLog.className="muted"; elLog.textContent = "No activity yet."; return; }
+    elLog.className = "";
+    elLog.innerHTML = '<table><thead><tr><th>When</th><th>Bin</th><th>Change</th><th>Now</th><th>Who</th></tr></thead><tbody>'+
+      rows.map(function(l){
+        var when = new Date(l.at*1000).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+        var sign = l.delta>0 ? "pos" : "neg";
+        var d = (l.delta>0?"+":"") + l.delta;
+        return '<tr><td class="muted">'+esc(when)+'</td><td>'+esc(l.name||l.bin_id)+' <span class="muted">('+esc(l.bin_id)+')</span></td>'+
+               '<td class="delta '+sign+'">'+d+'</td><td>'+l.resulting_qty+'</td><td>'+esc(l.who||"—")+'</td></tr>';
+      }).join("")+'</tbody></table>';
+  }
+
+  // ---- bin card actions ----------------------------------------------------
+  elBins.addEventListener("click", function(e){
+    var btn = e.target.closest("button"); if(!btn) return;
+    var card = e.target.closest(".bin"); if(!card) return;
+    var id = card.getAttribute("data-id");
+    var act = btn.getAttribute("data-act");
+    var b = bins.filter(function(x){return x.id===id;})[0];
+    if(act==="inc" || act==="dec"){
+      btn.disabled = true;
+      api("/api/take", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ id:id, delta: act==="inc"?1:-1, who:"(dashboard)" })})
+        .then(function(){ btn.disabled=false; return Promise.all([loadBins(), loadLog()]); })
+        .catch(function(){ btn.disabled=false; });
+    } else if(act==="edit"){ openEdit(b);
+    } else if(act==="qr"){ openQr(b);
+    } else if(act==="del"){
+      if(confirm('Delete bin "'+b.name+'" ('+id+')? This removes the item; its QR code will stop working.')){
+        api("/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id})})
+          .then(function(){ return Promise.all([loadBins(), loadLog()]); });
+      }
+    }
+  });
+
+  // ---- add / edit ----------------------------------------------------------
+  var f = {id:"f_id",name:"f_name",qty:"f_qty",unit:"f_unit",low:"f_low",loc:"f_loc",notes:"f_notes"};
+  function fv(k){ return document.getElementById(f[k]).value; }
+  function setf(k,v){ document.getElementById(f[k]).value = (v==null?"":v); }
+
+  document.getElementById("f_id").addEventListener("input", function(){
+    document.getElementById("urlPreview").textContent = BASE + "/" + (this.value.trim() || "…");
+  });
+
+  document.getElementById("addBtn").onclick = function(){ openEdit(null); };
+
+  function openEdit(b){
+    editingId = b ? b.id : null;
+    document.getElementById("editTitle").textContent = b ? ("Edit " + b.name) : "Add bin";
+    document.getElementById("editErr").textContent = "";
+    setf("id", b?b.id:""); setf("name", b?b.name:""); setf("qty", b?b.quantity:0);
+    setf("unit", b?b.unit:""); setf("low", b?b.low_threshold:""); setf("loc", b?b.location:""); setf("notes", b?b.notes:"");
+    var idEl = document.getElementById("f_id"); idEl.readOnly = !!b;
+    idEl.style.opacity = b ? .6 : 1;
+    document.getElementById("urlPreview").textContent = BASE + "/" + ((b?b.id:"")||"…");
+    editDlg.showModal();
+    setTimeout(function(){ (b?document.getElementById("f_name"):idEl).focus(); }, 30);
+  }
+
+  document.getElementById("editForm").addEventListener("submit", function(e){
+    // Which button submitted?
+    var submitter = e.submitter || document.activeElement;
+    if(submitter && submitter.value === "cancel"){ return; } // let dialog close
+    e.preventDefault();
+    var payload = {
+      id: fv("id").trim(), name: fv("name").trim(), quantity: fv("qty"),
+      unit: fv("unit").trim(), low_threshold: fv("low"), location: fv("loc").trim(), notes: fv("notes").trim()
+    };
+    var errEl = document.getElementById("editErr"); errEl.textContent = "";
+    if(!/^[A-Za-z0-9_-]{1,64}$/.test(payload.id)){ errEl.textContent = "Bin ID: letters, numbers, dashes or underscores only (no spaces or dots)."; return; }
+    if(!payload.name){ errEl.textContent = "Please enter an item name."; return; }
+    var save = document.getElementById("saveBtn"); save.disabled = true;
+    api("/api/bin", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)})
+      .then(function(r){
+        save.disabled = false;
+        if(r.body && r.body.ok){ editDlg.close(); return Promise.all([loadBins(), loadLog()]); }
+        errEl.textContent = (r.body && r.body.error) || "Couldn't save.";
+      }).catch(function(){ save.disabled=false; errEl.textContent = "Network error."; });
+  });
+
+  // ---- QR ------------------------------------------------------------------
+  var qrCurrent = null;
+  function openQr(b){
+    qrCurrent = b;
+    document.getElementById("qrTitle").textContent = "QR · " + b.name;
+    document.getElementById("qrBox").innerHTML = qrSvg(binUrl(b.id));
+    document.getElementById("qrUrl").textContent = binUrl(b.id);
+    qrDlg.showModal();
+  }
+  document.getElementById("qrClose").onclick = function(){ qrDlg.close(); };
+  document.getElementById("qrPrintOne").onclick = function(){ printSheet([qrCurrent]); };
+
+  // ---- print ---------------------------------------------------------------
+  function printSheet(list){
+    var area = document.getElementById("printArea");
+    area.innerHTML = list.map(function(b){
+      return '<div class="pcard">'+qrSvg(binUrl(b.id))+'<div class="pn">'+esc(b.name)+'</div><div class="pi">'+esc(b.id)+'</div></div>';
+    }).join("");
+    if(qrDlg.open) qrDlg.close();
+    window.print();
+  }
+  document.getElementById("printBtn").onclick = function(){
+    if(!bins.length){ alert("Add a bin first."); return; }
+    printSheet(bins);
+  };
+
+  // ---- live refresh --------------------------------------------------------
+  Promise.all([loadBins(), loadLog()]);
+  setInterval(function(){ if(!dialogOpen()) Promise.all([loadBins(), loadLog()]); }, 10000);
+})();
+</script>
+<script>
+  // Load the vendored QR library against the correct base path (set by the Worker).
+  (function(){ var s=document.createElement("script"); s.src=(window.INV_BASE||"")+"/static/qr.js"; document.head.appendChild(s); })();
+</script>
+</body>
+</html>
